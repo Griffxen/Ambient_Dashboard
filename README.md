@@ -25,6 +25,18 @@ Windows PowerShell 对应命令为 `$env:DASHBOARD_DEV='1'; npm run desktop`。
 
 从开始菜单手动启动时会同时打开控制面板；登录自动启动时只启动副屏展示和本机控制服务。程序使用单实例锁，重复点击开始菜单会唤起已有实例并打开或聚焦现有控制面板，不会重复启动多个后台程序。Ubuntu 开始菜单图标安装在当前用户的 `~/.local/share/icons/hicolor/512x512/apps/ambient-dashboard.png`，桌面入口位于 `~/.local/share/applications/ambient-dashboard.desktop`，该图标主题路径可供 Wayland 桌面菜单读取。
 
+## 通用展示接口
+
+本机程序可向 `POST http://127.0.0.1:3988/api/dashboard/system/presence` 发送一个临时展示实例。它会在上半区与音乐、天气提醒使用同一套淡入淡出布局；提供 `detail` 时，鼠标悬停或键盘聚焦可查看详情。新实例会替换当前实例，默认展示 12 秒。
+
+```sh
+curl -X POST http://127.0.0.1:3988/api/dashboard/system/presence \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"下载完成","summary":"研究资料已保存","detail":"共 12 个文件，1.8 GB\n保存位置：资料库 / 本周","icon":"✓","durationMs":12000}'
+```
+
+`title` 与 `summary` 必填；`detail`、`icon`、`id`、`durationMs` 可选。展示时长限制为 3–60 秒。发送 `DELETE` 到同一路径可立即收起当前实例。接口只监听 `127.0.0.1`，不对局域网开放。
+
 ## 规划器
 
 规划器地址需要在设置中由用户配置；示例使用 `https://planner.example.invalid`，不会内置任何特定服务地址。Token 只从当前用户的 `~/.config/ambient-dashboard/planner_token.txt` 读取，建议文件权限为 `600`；前端不读取 Token。Windows 对应路径为用户主目录下的 `.config/ambient-dashboard/planner_token.txt`。日程更新失败时保留最近一次成功数据，并以弱提示标记可能未更新。

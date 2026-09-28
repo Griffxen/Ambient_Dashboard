@@ -269,6 +269,23 @@
 .music-track-text{display:-webkit-box;min-width:0;max-width:100%;white-space:normal;overflow-wrap:anywhere;line-height:1.35;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
 .presence-slot.media-slot .presence-slot-inner{width:100%}
 
+/* Generic local presence API: shares the music/weather stage and detail region. */
+.external-presence{position:relative;display:flex;align-items:center;gap:11px;max-width:100%;padding:7px 10px;font:clamp(16px,2vw,21px)/1.35 var(--han-serif);color:var(--media-ink);isolation:isolate}
+.external-presence:before{content:"";position:absolute;z-index:-1;inset:-9px -13px;border-radius:12px;background:color-mix(in srgb,var(--lower-surface) 64%,transparent);backdrop-filter:blur(500px) saturate(138%);-webkit-backdrop-filter:blur(500px) saturate(138%);mask-image:radial-gradient(ellipse at center,black 45%,transparent 100%);pointer-events:none}
+.external-presence>span:last-child{display:-webkit-box;min-width:0;overflow:hidden;overflow-wrap:anywhere;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+.external-presence small{display:block;margin-bottom:2px;font:500 .58em 'IBM Plex Mono',monospace;letter-spacing:.08em;opacity:.68}
+.external-presence-icon{flex:none;color:var(--accent);font:500 1em 'IBM Plex Mono',monospace}
+.external-presence-detail strong{display:block;margin-bottom:5px}.external-presence-detail p{margin:0;white-space:pre-wrap;font-size:.86em;line-height:1.6}
+.presence-slot.external-slot .presence-slot-inner{width:100%}
+.motion-low .external-presence:before,.motion-off .external-presence:before{backdrop-filter:none;-webkit-backdrop-filter:none}
+@media(prefers-reduced-motion:reduce){.presence-slot{transition:none}}
+
+/* Details size themselves to their content, then center as a single block.
+   The broad ceiling keeps dense weather/API details from wrapping mid-sentence. */
+.hover-detail-region{left:50%;right:auto;width:max-content;max-width:88%;transform:translate(-50%,4px)}
+.hover-detail-region.visible{transform:translate(-50%,0)}
+@media(max-width:650px){.hover-detail-region{left:50%;right:auto;max-width:92%}}
+
 /* Superscript degrees after the integer, with the fixed two-digit fraction below. */
 .temperature-value{display:inline-block;white-space:nowrap;line-height:1;vertical-align:baseline}
 .temperature-value>span{font-size:1em}
