@@ -1,0 +1,12 @@
+node_modules/
+dist/
+release/
+.env
+*.env.local
+*.log
+planner_token.txt
+qweather.json
+weather-usage.json
+config.json
+memo.json
+*.tmp
