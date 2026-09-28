@@ -15,12 +15,12 @@ async function externalScript(name) {
 }
 
 const DEFAULTS = {
-  appearance: 'auto', autoPerformance: true, artTheme: 'auto',
+  appearance: 'auto', autoPerformance: true, alwaysPerformance: false, artTheme: 'auto',
   animation: 'normal', scheduleDensity: 'compact', scheduleScrollSpeed: 24, displayBrightness: 100,
   weather: { latitude: 39.99, longitude: 116.31, name: '北京' },
   weatherIntervals: { currentMinutes: 5, hourlyMinutes: 15, minutelyMinutes: 5, dailyMinutes: 360, warningsMinutes: 15, airCurrentMinutes: 30, airHourlyMinutes: 180 },
   plannerUrl: '', agendaRefreshSeconds: 60,
-  highLoadCpu: 85, highLoadSeconds: 30, autoStart: false, preventDisplaySleep: false, targetDisplayId: null
+  highLoadCpu: 85, highLoadGpu: 60, highLoadSeconds: 30, autoStart: false, preventDisplaySleep: false, targetDisplayId: null
 };
 function cleanSettings(input = {}) {
   const artChoices = ['orbit', 'grid', 'curve', 'bands', 'offset', 'fan', 'diagonal'];
@@ -31,6 +31,7 @@ function cleanSettings(input = {}) {
   return {
     appearance: choice('appearance', ['auto', 'solar', 'light', 'dark']),
     autoPerformance: input.autoPerformance !== false,
+    alwaysPerformance: input.alwaysPerformance === true,
     artTheme: choice('artTheme', ['auto', 'orbit', 'grid', 'curve', 'bands', 'offset', 'fan', 'diagonal']),
     artThemes: selectedArt.length ? selectedArt : artChoices,
     animation: choice('animation', ['normal', 'low', 'off']),
@@ -47,6 +48,7 @@ function cleanSettings(input = {}) {
     plannerTokenFile: typeof input.plannerTokenFile === 'string' ? input.plannerTokenFile : undefined,
     agendaRefreshSeconds: number(input.agendaRefreshSeconds, 60, 30, 3600),
     highLoadCpu: number(input.highLoadCpu, 85, 50, 100),
+    highLoadGpu: number(input.highLoadGpu, 60, 20, 100),
     highLoadSeconds: number(input.highLoadSeconds, 30, 10, 300),
     autoStart: input.autoStart === true,
     preventDisplaySleep: input.preventDisplaySleep === true,

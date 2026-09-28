@@ -50,12 +50,12 @@ function WeatherNotice({ text, dayOffset = 0 }: { text: string; dayOffset?: numb
   const timeLabel = shown.text.match(/^(.*?)(\d{2}:\d{2})(\s*(?:始|止))$/);
   return <span className="weather-notice-text" style={{ opacity: visible ? 1 : 0 }}>{timeLabel ? <>{timeLabel[1]}{timeLabel[2]}{shown.dayOffset !== 0 && <sup className="day-offset">{shown.dayOffset > 0 ? `+${shown.dayOffset}` : shown.dayOffset}</sup>}{timeLabel[3]}</> : <>{shown.text}{shown.dayOffset !== 0 && <sup className="day-offset">{shown.dayOffset > 0 ? `+${shown.dayOffset}` : shown.dayOffset}</sup>}</>}</span>;
 }
-type Settings = { appearance: 'auto' | 'solar' | 'light' | 'dark'; autoPerformance: boolean; artTheme: 'auto' | ArtVariant; artThemes?: ArtVariant[]; animation: 'normal' | 'low' | 'off'; scheduleDensity: 'compact' | 'relaxed'; scheduleScrollSpeed: number; displayBrightness: number; weather: { latitude: number; longitude: number; name: string }; highLoadCpu: number; highLoadSeconds: number; autoStart: boolean; agendaRefreshSeconds: number };
+type Settings = { appearance: 'auto' | 'solar' | 'light' | 'dark'; autoPerformance: boolean; alwaysPerformance: boolean; artTheme: 'auto' | ArtVariant; artThemes?: ArtVariant[]; animation: 'normal' | 'low' | 'off'; scheduleDensity: 'compact' | 'relaxed'; scheduleScrollSpeed: number; displayBrightness: number; weather: { latitude: number; longitude: number; name: string }; highLoadCpu: number; highLoadGpu: number; highLoadSeconds: number; autoStart: boolean; agendaRefreshSeconds: number };
 type WeatherEvent = { kind: string; label: string; shortLabel?: string; headline?: string; description?: string; instruction?: string; senderName?: string; start: number; end: number; at: number; approximate: boolean };
 type Weather = { source?: string; details?: { feelsLikeC?: number; humidityPercent?: number; windDirectionDegrees?: number; windKmh?: number; gustKmh?: number; aqi?: { value?: string | number; category?: string; primaryPollutant?: string | null; advice?: string | null; pollutants?: { name: string; value: number; unit: string }[] } | null; hourlyAqi?: { at: number; aqi: string | number; category: string }[] }; solar?: SolarDay[]; alerts?: WeatherEvent[]; alert: { kind: string; text: string; at: number } | null; summary: { temperatureC: number; condition: string; highC?: number | null; lowC?: number | null } | null; tomorrow?: { condition: string; highC?: number | null; lowC?: number | null } | null; location: string; updatedAt: string | null };
 type Telemetry = { at: string; cpuPercent: number | null; ramUsedGB: number; ramTotalGB: number; cpuTempC: number | null; gpu: { use: number | null; vramUsedMB: number | null; vramTotalMB: number | null; tempC: number | null; powerW: number | null; fanPercent: number | null; clockMHz: number | null } | null; netBytesPerSecond: number | null; diskBytesPerSecond: number | null; uptimeSeconds: number; cpuGHz: number | null };
 type Media = { title: string; artist: string; album: string; artUrl: string; artData?: string; durationUs: number; positionUs: number; status: string } | null;
-const defaultSettings: Settings = { appearance: 'auto', autoPerformance: true, artTheme: 'auto', animation: 'normal', scheduleDensity: 'compact', scheduleScrollSpeed: 24, displayBrightness: 100, weather: { latitude: 39.99, longitude: 116.31, name: '北京' }, highLoadCpu: 85, highLoadSeconds: 30, autoStart: false, agendaRefreshSeconds: 60 };
+const defaultSettings: Settings = { appearance: 'auto', autoPerformance: true, alwaysPerformance: false, artTheme: 'auto', animation: 'normal', scheduleDensity: 'compact', scheduleScrollSpeed: 24, displayBrightness: 100, weather: { latitude: 39.99, longitude: 116.31, name: '北京' }, highLoadCpu: 85, highLoadGpu: 60, highLoadSeconds: 30, autoStart: false, agendaRefreshSeconds: 60 };
 const normalizeSettings = (value: Partial<Settings>): Settings => ({ ...defaultSettings, ...value, scheduleScrollSpeed: value.scheduleScrollSpeed ?? defaultSettings.scheduleScrollSpeed, weather: { ...defaultSettings.weather, ...value.weather } });
 declare global { interface Window { dashboard?: { agenda(): Promise<AgendaResult>; memo(): Promise<Memo[]>; saveMemo(lines: Memo[]): Promise<Memo[]>; lanMemo(): Promise<{ available: boolean; url?: string; qr?: string; expiresAt?: string }>; quit(): Promise<void>; settings(): Promise<Settings>; saveSettings(settings: Partial<Settings>): Promise<Settings>; weather(): Promise<Weather>; telemetry(): Promise<Telemetry>; media(): Promise<Media>; onCommand(callback: (action: string) => void): () => void; publishState(state: { mode: string; artTheme: string }): Promise<void> } } }
 async function systemRequest<T>(route: string, body?: unknown): Promise<T> {
@@ -308,6 +308,7 @@ function App() {
   const [history, setHistory] = useState<Telemetry[]>([]);
   const settingsRef = useRef(settings);
   const highSince = useRef<number | null>(null);
+  const lowSince = useRef<number | null>(null);
   const suppressAutoUntil = useRef(0);
   const eventsRef = useRef<HTMLDivElement>(null);
   const refreshAgendaRef = useRef<() => void>(() => {});
@@ -315,6 +316,7 @@ function App() {
   const refreshMediaRef = useRef<() => void>(() => {});
   const scrollPauseUntil = useRef(Date.now() + 4000);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
+  useEffect(() => { if (settings.alwaysPerformance) setMode('performance'); }, [settings.alwaysPerformance]);
   useEffect(() => {
     const tick = setInterval(() => setNow(new Date()), 1000);
     const refresh = () => (window.dashboard ? window.dashboard.agenda() : fetch('/api/dashboard/agenda').then(r => r.json())).then(next => setAgenda(previous => next.data ? next : { ...previous, state: next.state })).catch(() => setAgenda(previous => ({ ...previous, state: 'stale' })));
@@ -383,11 +385,24 @@ function App() {
       setTelemetry(value);
       setHistory(old => [...old, value].filter(item => Date.now() - Date.parse(item.at) <= 900000));
       const cfg = settingsRef.current;
-      const highLoad = (value.cpuPercent != null && value.cpuPercent >= cfg.highLoadCpu) || (value.gpu?.use != null && value.gpu.use >= 90);
-      if (cfg.autoPerformance && highLoad && Date.now() >= suppressAutoUntil.current) {
+      const highLoad = (value.cpuPercent != null && value.cpuPercent >= cfg.highLoadCpu)
+        || (value.gpu?.use != null && value.gpu.use >= cfg.highLoadGpu);
+      if (cfg.alwaysPerformance) {
+        highSince.current = null;
+        lowSince.current = null;
+        setMode('performance');
+      } else if (cfg.autoPerformance && highLoad && Date.now() >= suppressAutoUntil.current) {
+        lowSince.current = null;
         highSince.current ||= Date.now();
         if (Date.now() - highSince.current >= cfg.highLoadSeconds * 1000) setMode('performance');
-      } else highSince.current = null;
+      } else if (cfg.autoPerformance && !highLoad && Date.now() >= suppressAutoUntil.current) {
+        highSince.current = null;
+        lowSince.current ||= Date.now();
+        if (Date.now() - lowSince.current >= 90000) setMode('normal');
+      } else {
+        highSince.current = null;
+        lowSince.current = null;
+      }
     }).catch(() => {});
     readWeather(); readMedia(); readTelemetry();
     const timers = [setInterval(readWeather, 120000), setInterval(readMedia, 2000), setInterval(readTelemetry, 5000)];

@@ -37,12 +37,14 @@ Windows PowerShell 对应命令为 `$env:DASHBOARD_DEV='1'; npm run desktop`。
   "plannerTokenFile": "/absolute/path/to/planner_token.txt",
   "agendaRefreshSeconds": 60,
   "highLoadCpu": 85,
+  "highLoadGpu": 60,
   "highLoadSeconds": 30,
+  "alwaysPerformance": false,
   "targetDisplayId": null
 }
 ```
 
-界面设置层可调整明暗、生成艺术、动画、日程密度与自动滚动速度（0 为关闭）、天气位置、性能模式自动切换与登录自启。`Alt+P` 切换 Normal / Performance；`Ctrl+,` 打开设置；`Ctrl+Shift+Q` 退出。登录自启在正式打包应用中生效。
+界面设置层可调整明暗、生成艺术、动画、日程密度与自动滚动速度（0 为关闭）、天气位置、性能模式自动切换与登录自启。自动模式在 CPU 或 GPU 持续高负载后进入 Performance，在两者均连续 90 秒低于阈值后返回 Normal；控制面板可启用“常驻 Performance”来禁止自动返回。`Alt+P` 切换 Normal / Performance；`Ctrl+,` 打开设置；`Ctrl+Shift+Q` 退出。登录自启在正式打包应用中生效。
 
 ## 信息与交互
 
