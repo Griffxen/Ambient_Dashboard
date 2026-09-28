@@ -57,3 +57,11 @@ Memo 本地保存为结构化 JSON，支持长期、限时与指定过期时间�
 ## 当前验证范围
 
 已在 Ubuntu 完成 TypeScript/Vite 构建、Linux AppImage 打包和 700×1120 CSS px 浏览器预览。AppImage 约 113 MB；开发预览中，Electron 主进程及直接子进程的一次 RSS 采样合计约 418 MiB。该采样包含共享页的重复计数，不等于实际独占内存；目标副屏上的长期占用仍需实测。Windows 安装程序、Windows 媒体/硬件采集、实际副屏选择与登录自启需在 Windows 和目标副屏上实测。
+
+## 许可证
+
+本项目采用 GNU AGPL v3 或更高版本（AGPL-3.0-or-later），详见 [LICENSE](LICENSE)。
+
+Copyright (c) 2026 Ruixiao Guo (Griffxen), College of Engineering, Peking University, Undergraduate.
+
+允许使用、修改与商业使用，但须遵守 AGPL 的源码提供、版权声明保留等要求。修改版通过网络提供交互服务时，应按第 13 条向远程用户提供获取对应源码的方式。详见 [版权声明](LICENSE) 和 [许可证说明](LICENSE)。
