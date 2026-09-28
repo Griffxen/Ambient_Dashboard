@@ -33,7 +33,7 @@ export default defineConfig({
             const response = await fetch('http://127.0.0.1:3988/api/dashboard/control', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }), signal: AbortSignal.timeout(1500) }).catch(() => null);
             res.statusCode = response?.ok ? 200 : 503; res.end(JSON.stringify(await response?.json().catch(() => ({})) || {})); return;
           }
-          if (!['normal', 'performance', 'next-art', 'refresh-agenda', 'scroll-top', 'weather-demo'].includes(action)) { res.statusCode = 400; res.end('{}'); return; }
+          if (!['normal', 'performance', 'next-art', 'refresh-agenda', 'scroll-top', 'refresh-weather', 'refresh-media', 'reminder-demo', 'windrain-demo', 'warning-demo', 'solar-demo'].includes(action)) { res.statusCode = 400; res.end('{}'); return; }
           if (action === 'normal' || action === 'performance') controlState = { ...controlState, mode: action };
           res.end(JSON.stringify(controlState)); return;
         }
