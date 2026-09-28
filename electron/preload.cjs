@@ -11,6 +11,6 @@ contextBridge.exposeInMainWorld('dashboard', {
   media: () => ipcRenderer.invoke('media:get'),
   quit: () => ipcRenderer.invoke('app:quit'),
   onCommand: (callback) => { const listener = (_event, action) => callback(action); ipcRenderer.on('control:command', listener); return () => ipcRenderer.removeListener('control:command', listener); },
-  onPresence: (callback) => { const show = (_event, value) => callback(value); const clear = () => callback(null); ipcRenderer.on('presence:show', show); ipcRenderer.on('presence:clear', clear); return () => { ipcRenderer.removeListener('presence:show', show); ipcRenderer.removeListener('presence:clear', clear); }; },
+  onPresence: (callback) => { const show = (_event, value) => callback(value); const clear = (_event, id) => callback({ clear: true, id }); ipcRenderer.on('presence:show', show); ipcRenderer.on('presence:clear', clear); return () => { ipcRenderer.removeListener('presence:show', show); ipcRenderer.removeListener('presence:clear', clear); }; },
   publishState: (state) => ipcRenderer.invoke('control:state', state)
 });

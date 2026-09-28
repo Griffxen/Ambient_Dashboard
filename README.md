@@ -27,15 +27,17 @@ Windows PowerShell 对应命令为 `$env:DASHBOARD_DEV='1'; npm run desktop`。
 
 ## 通用展示接口
 
-本机程序可向 `POST http://127.0.0.1:3988/api/dashboard/system/presence` 发送一个临时展示实例。它会在上半区与音乐、天气提醒使用同一套淡入淡出布局；提供 `detail` 时，鼠标悬停或键盘聚焦可查看详情。新实例会替换当前实例，默认展示 12 秒。
+本机程序可向 `POST http://127.0.0.1:3988/api/dashboard/system/presence` 发送临时展示实例。常态只显示 `icon + summary`；提供 `detail` 时，鼠标悬停或键盘聚焦会在右下角展开 `title + detail`。每个调用方应使用稳定且唯一的 `id`：相同 `id` 更新原槽位并刷新有效期，不同 `id` 按首次到达顺序分配到 3 个槽位。超过 3 条后，新实例进入当前最空的槽位；每个槽独立每 10 秒轮播。只有某个槽内超过一条时，该槽才显示 `x/y`，数字表示本槽内的位置和数量，而不是全部实例数量。
 
 ```sh
 curl -X POST http://127.0.0.1:3988/api/dashboard/system/presence \
   -H 'Content-Type: application/json' \
-  -d '{"title":"下载完成","summary":"研究资料已保存","detail":"共 12 个文件，1.8 GB\n保存位置：资料库 / 本周","icon":"✓","durationMs":12000}'
+  -d '{"id":"research-download","title":"下载完成","summary":"研究资料已保存","detail":"共 12 个文件，1.8 GB\n保存位置：资料库 / 本周","icon":"✓","durationMs":12000}'
 ```
 
-`title` 与 `summary` 必填；`detail`、`icon`、`id`、`durationMs` 可选。展示时长限制为 3–60 秒。发送 `DELETE` 到同一路径可立即收起当前实例。接口只监听 `127.0.0.1`，不对局域网开放。
+`title` 与 `summary` 必填；`detail`、`icon`、`id`、`durationMs` 可选，但持续更新的程序必须固定传入 `id`，否则每次请求都会生成新的实例。展示时长限制为 3–60 秒，默认 12 秒；相同 `id` 的每次 POST 都会从头刷新该实例的有效期，但不会改变槽位。程序停止上报后，实例在最后一次 POST 的有效期结束时自动消失；已过期的 `id` 再次出现时按新实例重新分配槽位。
+
+发送 `DELETE /api/dashboard/system/presence/<id>` 可立即删除指定实例，发送 `DELETE /api/dashboard/system/presence` 可清空全部实例。接口只监听 `127.0.0.1`，不对局域网开放。
 
 ## 规划器
 

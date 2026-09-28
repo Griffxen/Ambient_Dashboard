@@ -233,7 +233,9 @@ function Cursor() {
   }, []);
   return <div className="custom-cursor" ref={cursor} aria-hidden="true"><i/><b/></div>;
 }
-type Presence = { id: string; title: string; summary: string; detail?: string; icon: string; durationMs: number };
+type PresencePayload = { id: string; title: string; summary: string; detail?: string; icon: string; durationMs: number; expiresAt: number };
+type Presence = PresencePayload & { slot: number };
+type PresenceUpdate = PresencePayload | { clear: true; id?: string | null };
 function App() {
   const [now, setNow] = useState(new Date());
   const [agenda, setAgenda] = useState<AgendaResult>({ data: null, updatedAt: null, state: 'unconfigured' });
@@ -297,8 +299,7 @@ function App() {
     </div> });
   };
   const [media, setMedia] = useState<Media>(null);
-  const [presence, setPresence] = useState<Presence | null>(null);
-  const presenceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [presences, setPresences] = useState<Presence[]>([]);
   const [telemetry, setTelemetry] = useState<Telemetry | null>(null);
   const [history, setHistory] = useState<Telemetry[]>([]);
   const settingsRef = useRef(settings);
@@ -313,19 +314,22 @@ function App() {
   useEffect(() => { settingsRef.current = settings; }, [settings]);
   useEffect(() => { if (settings.alwaysPerformance) setMode('performance'); }, [settings.alwaysPerformance]);
   useEffect(() => {
-    const bridge = window.dashboard as (typeof window.dashboard & { onPresence?: (callback: (presence: Presence | null) => void) => () => void });
+    const bridge = window.dashboard as (typeof window.dashboard & { onPresence?: (callback: (update: PresenceUpdate) => void) => () => void });
     if (!bridge?.onPresence) return;
-    return bridge.onPresence(value => {
-      if (presenceTimer.current) clearTimeout(presenceTimer.current);
-      setHoverDetail(old => old?.id === 'presence' ? null : old);
-      setPresence(value);
-      if (value) presenceTimer.current = setTimeout(() => {
-        setPresence(null);
-        setHoverDetail(old => old?.id === 'presence' ? null : old);
-      }, value.durationMs);
+    return bridge.onPresence(update => {
+      if ('clear' in update) {
+        setPresences(old => update.id ? old.filter(item => item.id !== update.id) : []);
+        setHoverDetail(old => !update.id || old?.id === `presence:${update.id}` ? null : old);
+        return;
+      }
+      setPresences(old => {
+        const active = old.filter(item => item.expiresAt > Date.now());
+        return active.some(item => item.id === update.id)
+          ? active.map(item => item.id === update.id ? { ...update, slot: item.slot } : item)
+          : [...active, { ...update, slot: [0, 1, 2].reduce((best, slot) => active.filter(item => item.slot === slot).length < active.filter(item => item.slot === best).length ? slot : best, 0) }];
+      });
     });
   }, []);
-  useEffect(() => () => { if (presenceTimer.current) clearTimeout(presenceTimer.current); }, []);
   useEffect(() => {
     const tick = setInterval(() => setNow(new Date()), 1000);
     const refresh = () => (window.dashboard ? window.dashboard.agenda() : fetch('/api/dashboard/agenda').then(r => r.json())).then(next => setAgenda(previous => next.data ? next : { ...previous, state: next.state })).catch(() => setAgenda(previous => ({ ...previous, state: 'stale' })));
@@ -442,6 +446,12 @@ function App() {
     return () => cancelAnimationFrame(frame);
   }, []);
   const visibleMemos = memos.filter(m => !m.expiresAt || new Date(m.expiresAt).getTime() > now.getTime()).sort((a,b) => a.order - b.order);
+  const activePresences = presences.filter(item => item.expiresAt > now.getTime());
+  const presenceSlots = [0, 1, 2].map(slot => {
+    const queue = activePresences.filter(item => item.slot === slot);
+    const index = queue.length ? Math.floor(now.getTime() / 10000) % queue.length : 0;
+    return { slot, queue, index, presence: queue[index] };
+  });
   const events = useMemo(() => items(agenda.data, now), [agenda.data, Math.floor(now.getTime() / 60000)]);
   const semesterStart = agenda.data?.meta.semester?.start;
   const lastAgendaSync = agenda.updatedAt ? new Date(agenda.updatedAt) : null;
@@ -499,7 +509,7 @@ function App() {
   return <main className={`dashboard theme-${settings.artTheme} motion-${settings.animation} density-${settings.scheduleDensity} mode-${mode}`} style={{ '--night': `${(night * 100).toFixed(2)}%`, '--ink': ink(.594), '--media-ink': ink(.6), '--modal-ink': ink(.625), '--input-ink': ink(.615), '--alert-surface': night < .594 ? '#f0d8ce' : '#704033', colorScheme: night >= .625 ? 'dark' : 'light', '--art-stroke': `${1.65 + night * .5}px`, '--art-accent-stroke': `${2.05 + night * .6}px` } as React.CSSProperties}><Cursor/>
     <header><div className="clock"><span className="hours">{fmt(now).split(':')[0]}</span><span className="clock-dot">·</span><span className="minutes">{fmt(now).split(':')[1]}</span><span className="seconds-ring" aria-label={`${now.getSeconds()} 秒`}><svg viewBox="0 0 44 44" aria-hidden="true"><circle className="seconds-track" cx="22" cy="22" r="16"/><circle className="seconds-progress" cx="22" cy="22" r="16" style={{ strokeDasharray: `${now.getSeconds() / 60 * 100.53} 100.53` }}/></svg></span></div><div className="date"><div className="date-top">{weather?.summary && <span className="date-weather" tabIndex={0} onMouseEnter={showCurrentWeatherDetail} onMouseLeave={() => setHoverDetail(old => old?.id === 'current-weather' ? null : old)} onFocus={showCurrentWeatherDetail} onBlur={() => setHoverDetail(old => old?.id === 'current-weather' ? null : old)}><WeatherSummaryCarousel summary={weather.summary} tomorrow={weather.tomorrow} showTomorrow={showTomorrowCarousel}/></span>}<strong>{weekday(now)}</strong></div><span>{day(now).replaceAll('-', '.')}</span>{week && <span>WEEK {week}</span>}<button className="settings-trigger" aria-label="设置" onClick={() => setSettingsOpen(true)}><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg></button></div></header>
     <div className="middle-stage"><div className={`visual${solarEvents.length ? ' has-solar' : ''}`} aria-hidden={mode === 'performance'}>{media?.artData && <img className="media-texture" src={media.artData} alt="" aria-hidden="true"/>}<Art now={now} variant={artVariant} onDetail={setHoverDetail}/><div className="presence-stack">
-      <div className={`presence-slot external-slot${presence ? ' active' : ''}`}><div className="presence-slot-inner">{presence && <div className="external-presence" tabIndex={presence.detail ? 0 : undefined} onMouseEnter={() => presence.detail && setHoverDetail({ id: 'presence', content: <div className="external-presence-detail"><strong>{presence.title}</strong><p>{presence.detail}</p></div> })} onMouseLeave={() => setHoverDetail(old => old?.id === 'presence' ? null : old)} onFocus={() => presence.detail && setHoverDetail({ id: 'presence', content: <div className="external-presence-detail"><strong>{presence.title}</strong><p>{presence.detail}</p></div> })} onBlur={() => setHoverDetail(old => old?.id === 'presence' ? null : old)}><span className="external-presence-icon" aria-hidden="true">{presence.icon}</span><span><small>{presence.title}</small>{presence.summary}</span></div>}</div></div>
+      {presenceSlots.map(({ slot, queue, index, presence }) => { const detailId = presence ? `presence:${presence.id}` : ''; return <div className={`presence-slot external-slot${presence ? ' active' : ''}`} key={`external-slot-${slot}`}><div className="presence-slot-inner">{presence && <div className="external-presence" tabIndex={presence.detail ? 0 : undefined} onMouseEnter={() => presence.detail && setHoverDetail({ id: detailId, content: <div className="external-presence-detail"><strong>{presence.title}</strong><p>{presence.detail}</p></div> })} onMouseLeave={() => setHoverDetail(old => old?.id === detailId ? null : old)} onFocus={() => presence.detail && setHoverDetail({ id: detailId, content: <div className="external-presence-detail"><strong>{presence.title}</strong><p>{presence.detail}</p></div> })} onBlur={() => setHoverDetail(old => old?.id === detailId ? null : old)}><span className="external-presence-icon" aria-hidden="true">{presence.icon}</span><span className="external-presence-copy">{presence.summary}</span>{queue.length > 1 && <span className="external-presence-pagination" aria-label={`此槽位共 ${queue.length} 条展示，当前第 ${index + 1} 条`}>{index + 1}/{queue.length}</span>}</div>}</div></div>; })}
       <div className={`presence-slot media-slot${media?.title ? ' active' : ''}`}><div className="presence-slot-inner">{media?.title && <div className="media-presence"><span className="media-lines"><i/><i/><i/></span><FadingMusic title={media.title} artist={media.artist}/></div>}</div></div>
       <div className={`presence-slot solar-slot${solarEvents.length ? ' active' : ''}`}><div className="presence-slot-inner">{solarEvents.length > 0 && <div className="weather-presence solar-presence" tabIndex={0} onMouseEnter={showSolarDetail} onMouseLeave={() => setHoverDetail(old => old?.id === 'solar' ? null : old)} onFocus={showSolarDetail} onBlur={() => setHoverDetail(old => old?.id === 'solar' ? null : old)} key={solarEvents.map(event => `${event.kind}-${event.at}`).join(',')}><div className="solar-event-list">{solarEvents.map(event => <span className="solar-event" key={`${event.kind}-${event.at}`}><WeatherIcon kind={event.kind}/><span>{event.label} · <TimeWithOffset value={new Date(event.start)} relative={now}/></span></span>)}</div></div>}</div></div>
       <div className={`presence-slot wind-slot${demoWeather?.text || weatherEventText ? ' active' : ''}`}><div className="presence-slot-inner">{(demoWeather?.text || weatherEventText) && <div className={`weather-presence${demoWeather ? ' weather-demo' : ''}`} tabIndex={windRainEvents.length ? 0 : undefined} onMouseEnter={() => showWeatherDetail()} onMouseLeave={() => setHoverDetail(old => old?.id === 'weather' ? null : old)} onFocus={() => showWeatherDetail()} onBlur={() => setHoverDetail(old => old?.id === 'weather' ? null : old)}><div className="weather-brief"><WeatherIcon kind={demoWeather?.kind || selectedWeatherEvent?.kind || 'rain'}/><WeatherNotice text={demoWeather?.text || weatherEventText} dayOffset={demoWeather ? 0 : weatherEventOffset}/>{!demoWeather && windRainEvents.length > 1 && <span className="weather-pagination" aria-label={`共${windRainEvents.length}条提醒，当前第${windRainEvents.indexOf(selectedWeatherEvent) + 1}条`}>{windRainEvents.indexOf(selectedWeatherEvent) + 1}/{windRainEvents.length}</span>}</div></div>}</div></div>

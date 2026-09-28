@@ -44,6 +44,7 @@ async function startControlServer(handlers) {
       if (route === '/api/dashboard/system/media' && req.method === 'GET') return json(res, await handlers.media());
       if (route === '/api/dashboard/system/presence' && req.method === 'POST') return json(res, await handlers.presence(await body(req)), 202);
       if (route === '/api/dashboard/system/presence' && req.method === 'DELETE') return json(res, handlers.clearPresence());
+      if (route.startsWith('/api/dashboard/system/presence/') && req.method === 'DELETE') return json(res, handlers.clearPresence(decodeURIComponent(route.slice('/api/dashboard/system/presence/'.length))));
       if (route === '/api/dashboard/system/telemetry' && req.method === 'GET') return json(res, await handlers.telemetry());
       if (route === '/api/dashboard/agenda' && req.method === 'GET') return json(res, await handlers.agenda());
       if (req.method !== 'GET') return json(res, { error: 'Method not allowed' }, 405);

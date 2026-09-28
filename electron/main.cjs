@@ -223,10 +223,11 @@ app.whenReady().then(async () => {
         detail: text(input?.detail, 1200), icon: text(input?.icon, 4) || '•',
         durationMs: Math.max(3000, Math.min(60000, Number(input?.durationMs) || 12000))
       };
+      presence.expiresAt = Date.now() + presence.durationMs;
       window?.webContents?.send('presence:show', presence);
       return { accepted: true, id: presence.id };
     },
-    clearPresence: () => { window?.webContents?.send('presence:clear'); return { cleared: true }; },
+    clearPresence: id => { window?.webContents?.send('presence:clear', id || null); return { cleared: true, id: id || null }; },
     status: () => ({ ...controlState, screenAwakeActive: screenAwakeBlockerId !== null && powerSaveBlocker.isStarted(screenAwakeBlockerId) }),
     command: async action => {
       if (action === 'close-display') { closeDisplayWindow(); return; }
