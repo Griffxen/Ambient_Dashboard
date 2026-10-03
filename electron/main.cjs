@@ -128,9 +128,10 @@ function findTargetDisplay(settings, displays = screen.getAllDisplays()) {
 }
 function placeDisplayWindow(created, displayId) {
   // Mutter can override the initial position while mapping an XWayland window.
-  // Move only after mapping, then allow the move to settle before fullscreen.
+  // Move only after mapping, then allow the move to settle before verification.
   let timer;
   let attempts = 0;
+  const desktopDisplay = process.platform === 'linux' && !dev;
   const schedule = (callback, delay) => { timer = setTimeout(callback, delay); };
   created.once('closed', () => clearTimeout(timer));
   const place = () => {
@@ -138,13 +139,15 @@ function placeDisplayWindow(created, displayId) {
     const target = screen.getAllDisplays().find(d => d.id === displayId);
     if (!target) return;
     attempts += 1;
-    created.setFullScreen(false);
+    if (!desktopDisplay) created.setFullScreen(false);
     schedule(() => {
       if (created.isDestroyed()) return;
       created.setBounds(target.bounds);
       schedule(() => {
         if (created.isDestroyed()) return;
-        created.setFullScreen(true);
+        // A desktop window fills the display through bounds rather than native
+        // fullscreen, which would promote it back into foreground window policy.
+        if (!desktopDisplay) created.setFullScreen(true);
         schedule(() => {
           if (created.isDestroyed()) return;
           if (screen.getDisplayMatching(created.getBounds()).id !== displayId) {
@@ -167,6 +170,7 @@ function openDisplayWindow(settingsOverride) {
 async function createDisplayWindow(settingsOverride) {
   if (window && !window.isDestroyed()) {
     if (process.platform === 'win32') { pinWindowsDisplay(window); window.showInactive(); }
+    else if (process.platform === 'linux' && (!nativeWayland || usingXWayland)) window.showInactive();
     else window.show();
     return true;
   }
@@ -180,6 +184,10 @@ async function createDisplayWindow(settingsOverride) {
     icon: path.join(__dirname, 'assets', 'ambient-dashboard.png'),
     x: bounds?.x, y: bounds?.y, backgroundColor: '#eeece5',
     autoHideMenuBar: true, fullscreen: false, show: false,
+    ...(process.platform === 'linux' ? {
+      alwaysOnTop: false,
+      ...(!dev && (!nativeWayland || usingXWayland) ? { type: 'desktop', frame: false } : {})
+    } : {}),
     ...(process.platform === 'win32' ? { skipTaskbar: true, minimizable: false } : {}),
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false }
   });
@@ -202,6 +210,7 @@ async function createDisplayWindow(settingsOverride) {
   else await created.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
   if (created.isDestroyed()) return false;
   if (process.platform === 'win32') { pinWindowsDisplay(created); created.showInactive(); }
+  else if (process.platform === 'linux' && (!nativeWayland || usingXWayland)) created.showInactive();
   else created.show();
   if (target && !dev && (!nativeWayland || usingXWayland) && !created.isDestroyed()) {
     if (process.platform === 'win32') { created.setBounds(target.bounds); created.setFullScreen(true); pinWindowsDisplay(created); }

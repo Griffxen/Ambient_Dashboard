@@ -58,7 +58,7 @@ function loadMain(platform, displays) {
 const primary = { id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 } };
 const portrait = { id: 2, bounds: { x: -720, y: 0, width: 720, height: 1280 } };
 
-test('Linux keeps portrait selection, placement timing and platform services', async () => {
+test('Linux display stays in the desktop layer and opens without activation', async () => {
   const fixture = loadMain('linux', [primary, portrait]);
   await fixture.ready();
   await new Promise(resolve => setImmediate(resolve));
@@ -70,6 +70,17 @@ test('Linux keeps portrait selection, placement timing and platform services', a
   assert.equal(fixture.workersLoaded(), false);
   assert.equal(fixture.windows[0].options.skipTaskbar, undefined);
   assert.equal(fixture.windows[0].alwaysOnTop, undefined);
+  assert.equal(fixture.windows[0].options.alwaysOnTop, false);
+  assert.equal(fixture.windows[0].options.type, 'desktop');
+  assert.equal(fixture.windows[0].options.frame, false);
+  assert.equal(fixture.windows[0].shownInactive, true);
+  fixture.screen.getDisplayMatching = () => portrait;
+  for (let i = 0; i < fixture.timers.length; i++) fixture.timers[i]();
+  assert.deepEqual(fixture.windows[0].bounds, portrait.bounds);
+  assert.equal(fixture.windows[0].fullscreen, undefined);
+  fixture.windows[0].shownInactive = false;
+  await fixture.handlers().command('open-display');
+  assert.equal(fixture.windows[0].shownInactive, true);
   assert.equal(fixture.trays.length, 0);
 });
 
