@@ -14,10 +14,21 @@ function loadMain(platform, displays) {
   const screen = new EventEmitter();
   Object.assign(screen, { getAllDisplays: () => displays, getPrimaryDisplay: () => displays[0] });
   const windows = [];
+  const trays = [];
+  class Tray extends EventEmitter {
+    constructor(icon) { super(); this.icon = icon; trays.push(this); }
+    setToolTip(value) { this.tooltip = value; }
+    popUpContextMenu(menu) { this.menu = menu; }
+    destroy() { this.destroyed = true; }
+  }
   class BrowserWindow extends EventEmitter {
     constructor(options) { super(); this.options = options; this.webContents = { send() {} }; windows.push(this); }
     isDestroyed() { return this.closed || false; }
     show() {}
+    showInactive() { this.shownInactive = true; }
+    isMinimized() { return this.minimized || false; }
+    restore() { this.minimized = false; }
+    setAlwaysOnTop(value, level) { this.alwaysOnTop = value; this.topLevel = level; }
     async loadFile() { await Promise.resolve(); }
     setBounds(bounds) { this.bounds = { ...bounds }; }
     getBounds() { return this.bounds; }
@@ -32,7 +43,7 @@ function loadMain(platform, displays) {
     process: { platform, env: {}, argv: [], execPath: 'dashboard' },
     setTimeout: callback => { timers.push(callback); return callback; }, clearTimeout: () => {},
     require(name) {
-      if (name === 'electron') return { app, BrowserWindow, screen, ipcMain: { handle() {} }, powerSaveBlocker: {} };
+      if (name === 'electron') return { app, BrowserWindow, screen, Tray, Menu: { buildFromTemplate: value => value }, ipcMain: { handle() {} }, powerSaveBlocker: {} };
       if (name === 'node:fs/promises') return { readFile: async () => '{}' };
       if (name === './services.cjs') return { cleanSettings: input => input };
       if (name === './lan-memo.cjs') return { startMemoEditor: async () => {}, stopMemoEditor() {} };
@@ -42,7 +53,7 @@ function loadMain(platform, displays) {
     }
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'electron', 'main.cjs'), 'utf8'), context);
-  return { ready: () => ready(), context, screen, windows, timers, handlers: () => handlers, workersLoaded: () => workersLoaded };
+  return { ready: () => ready(), context, screen, windows, trays, app, timers, handlers: () => handlers, workersLoaded: () => workersLoaded };
 }
 const primary = { id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 } };
 const portrait = { id: 2, bounds: { x: -720, y: 0, width: 720, height: 1280 } };
@@ -57,6 +68,9 @@ test('Linux keeps portrait selection, placement timing and platform services', a
   assert.equal(fixture.timers.length, 1); // Existing Linux placement is still delayed.
   assert.equal(fixture.screen.listenerCount('display-metrics-changed'), 0);
   assert.equal(fixture.workersLoaded(), false);
+  assert.equal(fixture.windows[0].options.skipTaskbar, undefined);
+  assert.equal(fixture.windows[0].alwaysOnTop, undefined);
+  assert.equal(fixture.trays.length, 0);
 });
 
 test('Windows fullscreen placement uses DIP bounds and concurrent opens create one window', async () => {
@@ -67,6 +81,17 @@ test('Windows fullscreen placement uses DIP bounds and concurrent opens create o
   assert.deepEqual(fixture.windows[0].bounds, portrait.bounds);
   assert.equal(fixture.windows[0].fullscreen, true);
   assert.equal(fixture.screen.listenerCount('display-metrics-changed'), 1);
+  const display = fixture.windows[0];
+  assert.equal(display.options.skipTaskbar, true);
+  assert.equal(display.options.minimizable, false);
+  assert.equal(display.alwaysOnTop, true);
+  assert.equal(display.topLevel, 'pop-up-menu');
+  assert.equal(display.shownInactive, true);
+  display.minimized = true;
+  display.emit('minimize');
+  assert.equal(display.isMinimized(), false);
+  await fixture.handlers().command('close-display');
+  assert.equal(display.isDestroyed(), true);
 });
 
 test('Windows without portrait screen stays available in background', async () => {
@@ -75,6 +100,26 @@ test('Windows without portrait screen stays available in background', async () =
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(fixture.windows.length, 0);
   assert.equal(fixture.handlers().status().displayAvailable, false);
+});
+
+test('Windows tray controls display visibility and destroys on exit', async () => {
+  const fixture = loadMain('win32', [primary, portrait]);
+  await fixture.ready();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(fixture.trays.length, 1);
+  const tray = fixture.trays[0];
+  assert.equal(tray.tooltip, 'Ambient Dashboard');
+  tray.emit('right-click');
+  assert.equal(tray.menu[1].label, '关闭副屏展示');
+  tray.menu[1].click();
+  assert.ok(fixture.windows[0].isDestroyed());
+  tray.emit('right-click');
+  assert.equal(tray.menu[1].label, '打开副屏展示');
+  tray.menu[1].click();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(fixture.windows.length, 2);
+  fixture.app.emit('before-quit');
+  assert.equal(tray.destroyed, true);
 });
 
 test('Windows metrics changes reposition the same display and close a rotated landscape display', async () => {

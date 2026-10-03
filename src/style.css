@@ -16,6 +16,7 @@
 .dashboard{--axis-color:rgba(42,47,44,.48)}.event:before{background:var(--axis-color)}.gap{width:170px;padding:2px 0 4px;text-align:center;color:var(--axis-color)}@media(max-width:650px){.gap{width:144px}}@media(prefers-color-scheme:dark){.dashboard{--axis-color:rgba(225,222,211,.46)}}
 .gap{padding-bottom:0}.gap:after{content:'';display:block;width:1px;height:15px;margin:3px auto -4px;background:var(--axis-color)}
 .clock{letter-spacing:0;font-variant-numeric:tabular-nums}
+.platform-windows .clock{font-family:'IBM Plex Mono',Consolas,monospace;font-variant-numeric:tabular-nums}
 :root{--han-serif:'STZhongsong','华文中宋','Noto Serif CJK SC','Noto Serif SC Variable','Noto Serif SC','SimSun',serif;font-family:'DM Sans','DM Sans Variable',var(--han-serif)}
 .event-body strong,.hover-notes,.type-tag,.due-tag,.memo-paper,.empty-schedule,.modal,.event time em{font-family:var(--han-serif)}
 .event{align-items:baseline}.event>i{align-self:start;margin-top:5px}

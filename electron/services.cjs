@@ -1,8 +1,8 @@
 const { weatherEvents } = require('./weather-events.cjs');
+const { WeatherUsageStore } = require('./weather-usage.cjs');
 const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs/promises');
-const crypto = require('node:crypto');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const run = promisify(execFile);
@@ -46,6 +46,7 @@ function cleanSettings(input = {}) {
     weatherIntervals: Object.fromEntries(Object.entries(DEFAULTS.weatherIntervals).map(([key, fallback]) => [key, number(input.weatherIntervals?.[key], fallback, 5, 1440)])),
     plannerUrl: /^https?:\/\//.test(input.plannerUrl || '') ? input.plannerUrl : DEFAULTS.plannerUrl,
     plannerTokenFile: typeof input.plannerTokenFile === 'string' ? input.plannerTokenFile : undefined,
+    weatherUsageFile: typeof input.weatherUsageFile === 'string' && path.isAbsolute(input.weatherUsageFile) ? input.weatherUsageFile : '',
     agendaRefreshSeconds: number(input.agendaRefreshSeconds, 60, 30, 3600),
     highLoadCpu: number(input.highLoadCpu, 85, 50, 100),
     highLoadGpu: number(input.highLoadGpu, 60, 20, 100),
@@ -60,37 +61,20 @@ let weatherCache = { key: '', until: 0, value: null };
 const weatherConfigDir = path.join(os.homedir(), '.config', 'ambient-dashboard');
 const weatherUsagePath = path.join(weatherConfigDir, 'weather-usage.json');
 const qweatherCredentialsPath = path.join(weatherConfigDir, 'qweather.json');
-const usageEntries = [];
+const usageStore = new WeatherUsageStore(weatherUsagePath);
+let usageEntries = [];
+let activeWeatherUsageFile = '';
 const endpointState = new Map();
-let usageLoaded = false;
-let usageSave = Promise.resolve();
 let officialStatsCache = { until: 0, value: null, promise: null };
 const endpointNames = { current: '实时天气', hourly: '逐小时天气', minutely: '分钟降水', daily: '日月预报', warnings: '天气预警', airCurrent: '实时空气质量', airHourly: '逐小时空气质量' };
-async function loadUsage() {
-  if (usageLoaded) return;
-  usageLoaded = true;
-  try { const rows = JSON.parse(await fs.readFile(weatherUsagePath, 'utf8')); if (Array.isArray(rows)) usageEntries.push(...rows.filter(row => row && Number.isFinite(row.at) && typeof row.endpoint === 'string')); } catch {}
-}
-function saveUsage() {
-  usageSave = usageSave.then(async () => {
-    const cutoff = Date.now() - 24 * 3600000;
-    usageEntries.sort((a, b) => a.at - b.at);
-    while (usageEntries.length && usageEntries[0].at < cutoff) usageEntries.shift();
-    await fs.mkdir(weatherConfigDir, { recursive: true, mode: 0o700 });
-    const temp = `${weatherUsagePath}.${crypto.randomUUID()}.tmp`;
-    await fs.writeFile(temp, JSON.stringify(usageEntries), { mode: 0o600 });
-    await fs.rename(temp, weatherUsagePath).catch(async () => { await fs.rm(weatherUsagePath, { force: true }); await fs.rename(temp, weatherUsagePath); });
-    await fs.chmod(weatherUsagePath, 0o600).catch(() => {});
-  }).catch(() => {});
-  return usageSave;
-}
 async function recordRequest(endpoint, ok) {
-  await loadUsage();
-  usageEntries.push({ at: Date.now(), endpoint, ok: !!ok });
-  await saveUsage();
+  await usageStore.sync(activeWeatherUsageFile, { endpoint, ok: !!ok }).catch(() => {});
+  usageEntries = usageStore.entries;
 }
 async function weatherUsage(settings) {
-  await loadUsage();
+  activeWeatherUsageFile = settings.weatherUsageFile || '';
+  await usageStore.sync(activeWeatherUsageFile).catch(error => { usageStore.sharing.error = error.message; });
+  usageEntries = usageStore.entries;
   const cutoff = Date.now() - 24 * 3600000;
   usageEntries.sort((a, b) => a.at - b.at);
   while (usageEntries.length && usageEntries[0].at < cutoff) usageEntries.shift();
@@ -132,6 +116,7 @@ async function weatherUsage(settings) {
   const localFailedLast24h = usageEntries.length - localSuccessLast24h;
   return {
     requestsLast24h: usageEntries.length, localSuccessLast24h, localFailedLast24h,
+    sharing: usageStore.sharing,
     localRecordedFrom: usageEntries.length ? new Date(usageEntries[0].at).toISOString() : null,
     limit: 1000, provider: credentials ? 'qweather' : 'open-meteo', configured: !!credentials, officialStats,
     endpoints: Object.entries(endpointNames).map(([key, label]) => ({ key, label, ...(endpointCounts[key] || { count: 0, success: 0, failed: 0 }), intervalMinutes: intervals[`${key}Minutes`] ?? null }))
@@ -175,6 +160,7 @@ async function scheduledQWeatherFetch(key, intervalMinutes, url, credentials, fo
 const qUrl = (host, endpoint, params = {}) => `https://${host}/weather/${endpoint}?${new URLSearchParams(params)}`;
 const timeValue = value => { const time = Date.parse(value); return Number.isFinite(time) ? time : null; };
 async function qweather(settings, credentials, force = false) {
+  activeWeatherUsageFile = settings.weatherUsageFile || '';
   const loc = settings.weather, interval = settings.weatherIntervals || DEFAULTS.weatherIntervals;
   const coords = `${loc.latitude}/${loc.longitude}`;
   const endpoints = await Promise.all([

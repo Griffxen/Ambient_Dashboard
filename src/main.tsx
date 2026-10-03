@@ -5,6 +5,8 @@ import Control from './control';
 import { createRoot } from 'react-dom/client';
 import './style.css';
 
+if (navigator.userAgent.includes('Windows')) document.documentElement.classList.add('platform-windows');
+
 type Task = { id: string; title: string; category: string; date: string; end_date: string; start_time?: string; end_time?: string; due?: string | null; done?: boolean; notes?: string };
 type Course = { date: string; name: string; time: string; room?: string };
 type AgendaData = { meta: { semester?: { start: string }; categories?: { name: string; color: string }[] }; agenda: { tasks: Task[]; courses: Course[]; date_counts?: { date: string; count: number }[] } };

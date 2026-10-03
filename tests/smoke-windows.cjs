@@ -55,6 +55,11 @@ app.whenReady().then(async () => {
     if (display) {
       for (const font of await display.webContents.executeJavaScript(fontCheck)) assert.ok(font.count > 0, `Display font missing: ${font.family}`);
       assert.ok(display.isFullScreen());
+      assert.ok(display.isAlwaysOnTop(), 'Display is pinned above normal windows');
+      assert.equal(display.isMinimizable(), false, 'Display cannot normally be minimized');
+      display.minimize();
+      await new Promise(resolve => setTimeout(resolve, 300));
+      assert.equal(display.isMinimized(), false, 'Unexpected minimization is restored');
       const target = screen.getDisplayMatching(display.getBounds());
       assert.ok(target.bounds.width < target.bounds.height);
       const displayText = await display.webContents.executeJavaScript('document.body.innerText');
@@ -67,9 +72,18 @@ app.whenReady().then(async () => {
         const { nodeId } = await display.webContents.debugger.sendCommand('DOM.querySelector', { nodeId: root.nodeId, selector });
         const { fonts } = await display.webContents.debugger.sendCommand('CSS.getPlatformFontsForNode', { nodeId });
         log('RENDERED FONT', selector, fonts);
-        assert.ok(fonts.some(font => font.familyName.includes(selector === '.clock' ? 'DM Sans' : 'IBM Plex Mono')), `${selector} font fell back`);
+        assert.ok(fonts.some(font => font.familyName.includes('IBM Plex Mono')), `${selector} font fell back`);
       }
       display.webContents.debugger.detach();
+      const digitWidths = await display.webContents.executeJavaScript(`(async () => {
+        await document.fonts.ready;
+        const style = getComputedStyle(document.querySelector('.clock'));
+        const context = document.createElement('canvas').getContext('2d');
+        context.font = style.fontSize + ' ' + style.fontFamily;
+        return Array.from('0123456789', digit => context.measureText(digit).width);
+      })()`);
+      assert.ok(Math.max(...digitWidths) - Math.min(...digitWidths) < .01, 'All clock digits have equal width');
+      log('CLOCK DIGIT WIDTHS', digitWidths);
       const liveStatus = await (await get('/api/dashboard/control')).json();
       assert.equal(liveStatus.connected, true, 'Renderer publishes state over IPC');
       log('CONNECTED', liveStatus);

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, powerSaveBlocker, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, powerSaveBlocker, screen, Tray, Menu } = require('electron');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
@@ -17,6 +17,7 @@ const configPath = path.join(os.homedir(), '.config', 'ambient-dashboard', 'conf
 let storePath;
 let window;
 let controlWindow;
+let windowsTray;
 let controlServerReady = false;
 let pendingControlOpen = false;
 let activeDisplayId = null;
@@ -164,7 +165,11 @@ function openDisplayWindow(settingsOverride) {
   return windowsDisplayOpen;
 }
 async function createDisplayWindow(settingsOverride) {
-  if (window && !window.isDestroyed()) { window.show(); return true; }
+  if (window && !window.isDestroyed()) {
+    if (process.platform === 'win32') { pinWindowsDisplay(window); window.showInactive(); }
+    else window.show();
+    return true;
+  }
   const target = findTargetDisplay(settingsOverride || await getSettings());
   controlState = { ...controlState, connected: false, displayAvailable: Boolean(target) };
   if (!target && !dev) return false;
@@ -175,9 +180,18 @@ async function createDisplayWindow(settingsOverride) {
     icon: path.join(__dirname, 'assets', 'ambient-dashboard.png'),
     x: bounds?.x, y: bounds?.y, backgroundColor: '#eeece5',
     autoHideMenuBar: true, fullscreen: false, show: false,
+    ...(process.platform === 'win32' ? { skipTaskbar: true, minimizable: false } : {}),
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false }
   });
   const created = window;
+  if (process.platform === 'win32') {
+    created.on('minimize', () => {
+      if (created.isDestroyed()) return;
+      created.restore();
+      pinWindowsDisplay(created);
+      created.showInactive();
+    });
+  }
   created.on('closed', () => {
     if (window === created) {
       window = null; activeDisplayId = null;
@@ -187,12 +201,17 @@ async function createDisplayWindow(settingsOverride) {
   if (dev) await created.loadURL('http://127.0.0.1:5173');
   else await created.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
   if (created.isDestroyed()) return false;
-  created.show();
+  if (process.platform === 'win32') { pinWindowsDisplay(created); created.showInactive(); }
+  else created.show();
   if (target && !dev && (!nativeWayland || usingXWayland) && !created.isDestroyed()) {
-    if (process.platform === 'win32') { created.setBounds(target.bounds); created.setFullScreen(true); }
+    if (process.platform === 'win32') { created.setBounds(target.bounds); created.setFullScreen(true); pinWindowsDisplay(created); }
     else placeDisplayWindow(created, target.id);
   }
   return true;
+}
+function pinWindowsDisplay(created) {
+  if (created.isMinimized()) created.restore();
+  created.setAlwaysOnTop(true, 'pop-up-menu');
 }
 function closeDisplayWindow() {
   displayWanted = false;
@@ -218,6 +237,23 @@ async function openControlPanel() {
   created.loadURL('http://127.0.0.1:3988/control').catch(error => {
     console.error('Control panel failed to load:', error);
   });
+}
+
+function createWindowsTray() {
+  windowsTray = new Tray(path.join(__dirname, 'assets', 'ambient-dashboard.png'));
+  windowsTray.setToolTip('Ambient Dashboard');
+  windowsTray.on('click', () => openControlPanel().catch(console.error));
+  windowsTray.on('double-click', () => openControlPanel().catch(console.error));
+  windowsTray.on('right-click', () => windowsTray.popUpContextMenu(Menu.buildFromTemplate([
+    { label: '打开控制面板', click: () => openControlPanel().catch(console.error) },
+    { label: window && !window.isDestroyed() ? '关闭副屏展示' : '打开副屏展示', click: () => {
+      if (window && !window.isDestroyed()) closeDisplayWindow();
+      else { displayWanted = true; openDisplayWindow().catch(console.error); }
+    } },
+    { type: 'separator' },
+    { label: '退出 Ambient Dashboard', click: () => app.quit() }
+  ])));
+  app.on('before-quit', () => { windowsTray?.destroy(); windowsTray = null; });
 }
 
 if (!hasSingleInstanceLock) {
@@ -279,6 +315,7 @@ app.whenReady().then(async () => {
     quit: () => setTimeout(() => app.quit(), 200)
   }).catch(error => { console.error('Control panel unavailable:', error.message); });
   controlServerReady = true;
+  if (process.platform === 'win32') createWindowsTray();
   screen.on('display-added', async () => {
     controlState = { ...controlState, displayAvailable: Boolean(findTargetDisplay(await getSettings())) };
     if (displayWanted && !window) openDisplayWindow().catch(console.error);
@@ -303,6 +340,7 @@ app.whenReady().then(async () => {
           window.setFullScreen(false);
           window.setBounds(target.bounds);
           window.setFullScreen(true);
+          pinWindowsDisplay(window);
         }
       } else if (!dev) {
         if (window && !window.isDestroyed()) window.close();

@@ -21,6 +21,16 @@ Windows PowerShell 对应命令为 `$env:DASHBOARD_DEV='1'; npm run desktop`。
 
 主屏控制页：开发预览使用 `http://127.0.0.1:5173/control`；正式桌面程序运行时使用 `http://127.0.0.1:3988/control`。正式控制服务仅监听本机地址。控制页可切换模式、切换图案、刷新日程、将时间轴回到顶部、逐条编辑 Memo，查看状态和性能指标，并修改详细设置。修改后点击对应的保存按钮；副屏会在原页面同步更新。右上角“关闭软件”经过页面内确认后，会退出桌面程序及其本机服务。
 
+Windows 副屏展示全屏置顶于普通窗口和任务栏之上，不单独显示任务栏按钮，禁止普通最小化，并在收到最小化事件时恢复展示；打开展示时不主动抢占主屏焦点。通过控制页仍可关闭副屏展示或退出软件。Windows 锁屏的安全桌面不显示 Dashboard，其他置顶窗口或独占全屏程序也可能覆盖它。Linux 的窗口行为保持不变。
+
+Windows 时钟使用离线自带的 IBM Plex Mono 等宽字体，固定数字宽度；Linux 保留原时钟字体。
+
+Windows 提供托盘图标：单击打开控制面板，右键可开关副屏展示或退出。托盘不改变 Linux 的窗口行为。
+
+和风天气与账号统计共用 `~/.config/ambient-dashboard/qweather.json`，Windows 对应 `C:\Users\<用户名>\.config\ambient-dashboard\qweather.json`。账号官方统计自动包含同账号两端的成功请求；本软件逐接口成功/失败统计可通过控制页的「跨系统天气统计文件」共享。建议 Windows 使用 `D:\SharedData\AmbientDashboard\weather-usage.json`，Linux 挂载该盘后填写同一文件的 Linux 绝对路径（例如 `/media/<用户名>/<卷标>/SharedData/AmbientDashboard/weather-usage.json`），再保存基础配置。也可在各自 `config.json` 设置 `weatherUsageFile`。密钥保持在各系统用户目录，不放到共享统计文件中。
+
+两端启动后自动合并用户目录内已有的 `weather-usage.json`，按记录 ID 去重并保留滚动 24 小时的成功和失败请求；共享文件暂不可用时继续保存本机记录，恢复后自动合并。旧版无 ID 的记录也可迁移，重复导入不会重复计数。Linux 需重新编译 AppImage，挂载共享分区且保证可写；原有天气接口和调度间隔不变。这里累计的是滚动 24 小时统计，并非历史总计。
+
 正式打包分别运行 `npm run package:linux`（Ubuntu AppImage）或在 Windows 上运行 `npm run package:windows`（NSIS 安装程序）。输出位于 `release/`。正式启动时只在非主屏的竖屏上显示；副屏缺失时程序与控制服务继续运行，控制面板显示“未连接”，检测到副屏后自动打开展示。高级设置 `targetDisplayId` 可指定屏幕 ID，需填入当前 Electron `screen` API 报告的数字 ID。控制面板可单独关闭或重新打开副屏展示；开发预览会使用普通窗口。
 
 从开始菜单、任务栏或登录自启启动时，只启动副屏展示和本机控制服务。程序使用单实例锁，应用已运行时，再次点击启动会打开或聚焦控制面板，不会重复启动后台程序。需要控制面板时可访问 `http://127.0.0.1:3988/control`，或使用 `--control` 参数启动以打开独立控制窗口。Ubuntu 开始菜单图标安装在当前用户的 `~/.local/share/icons/hicolor/512x512/apps/ambient-dashboard.png`，桌面入口位于 `~/.local/share/applications/ambient-dashboard.desktop`，该图标主题路径可供 Wayland 桌面菜单读取。
