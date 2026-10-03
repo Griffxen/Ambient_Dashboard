@@ -186,7 +186,7 @@ async function qweather(settings, credentials, force = false) {
     if (start && end) {
       const tone = ({ blue: '蓝', yellow: '黄', orange: '橙', red: '红' })[warning.color?.code] || '';
       const type = warning.eventType?.name || '天气';
-      push('warning', warning.headline || `${type}${tone}色预警`, start, end, false, { shortLabel: `${type}${tone}色预警`, headline: warning.headline || `${type}${tone}色预警`, description: warning.description || '', instruction: warning.instruction || '', senderName: warning.senderName || '', severity: warning.severity || '' });
+      push('warning', warning.headline || `${type}${tone}色预警`, start, end, false, { color: warning.color?.code || '', shortLabel: `${type}${tone}色预警`, headline: warning.headline || `${type}${tone}色预警`, description: warning.description || '', instruction: warning.instruction || '', senderName: warning.senderName || '', severity: warning.severity || '' });
     }
   }
   const runs = new Map();

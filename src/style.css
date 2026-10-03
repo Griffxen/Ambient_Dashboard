@@ -236,6 +236,11 @@
 .hover-detail-region{left:51%;right:9%;bottom:10%;font-size:clamp(14px,1.65vw,18px);background:var(--lower-surface);padding:10px 14px}
 .weather-detail-list>div{column-gap:12px}.weather-detail-list>div+div{margin-top:9px;margin-left:8px}
 .hover-detail-region .weather-icon{width:17px;height:17px}
+/* Warning hues follow the provider's level, with readable day/night variants. */
+.weather-icon[data-warning-color="blue"]{color:color-mix(in srgb,#1677d2 calc(100% - var(--night)),#64adf0 var(--night))}
+.weather-icon[data-warning-color="yellow"]{color:color-mix(in srgb,#d4a500 calc(100% - var(--night)),#f5cf36 var(--night))}
+.weather-icon[data-warning-color="orange"]{color:color-mix(in srgb,#ee7d16 calc(100% - var(--night)),#ffab4d var(--night))}
+.weather-icon[data-warning-color="red"]{color:color-mix(in srgb,#df3535 calc(100% - var(--night)),#ff7272 var(--night))}
 @media(max-width:650px){.hover-detail-region{left:48%;right:6%;font-size:14px;padding:8px 10px}.presence-stack{left:6%}.weather-detail-list>div+div{margin-left:0}}
 
 .current-weather-detail>div+div{margin-top:0}.current-weather-detail small{display:block;margin-top:2px;font-size:.75em;opacity:.7}
