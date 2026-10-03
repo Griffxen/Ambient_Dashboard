@@ -11,6 +11,7 @@ const nativeWayland = process.platform === 'linux' && process.env.XDG_SESSION_TY
 const usingXWayland = process.argv.includes('--ozone-platform=x11');
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 const launchControlPanel = process.argv.includes('--control');
+if (process.platform === 'win32') app.setAppUserModelId('com.example.ambientdashboard');
 
 const configPath = path.join(os.homedir(), '.config', 'ambient-dashboard', 'config.json');
 let storePath;
@@ -37,7 +38,7 @@ function applyScreenAwake(enabled) {
 }
 async function applyAutoStart(enabled) {
   if (!app.isPackaged) return;
-  if (process.platform === 'win32') { app.setLoginItemSettings({ openAtLogin: enabled, args: ['--autostart'] }); return; }
+  if (process.platform === 'win32') { app.setLoginItemSettings({ openAtLogin: enabled, path: process.execPath, args: ['--autostart'] }); return; }
   if (process.platform !== 'linux') return;
   const file = path.join(os.homedir(), '.config', 'autostart', 'ambient-dashboard.desktop');
   if (!enabled) { await fs.rm(file, { force: true }); return; }
@@ -155,7 +156,14 @@ function placeDisplayWindow(created, displayId) {
   };
   schedule(place, 500);
 }
-async function openDisplayWindow(settingsOverride) {
+let windowsDisplayOpen = null;
+function openDisplayWindow(settingsOverride) {
+  if (process.platform !== 'win32') return createDisplayWindow(settingsOverride);
+  // Display-added and control commands can arrive while the page is loading.
+  if (!windowsDisplayOpen) windowsDisplayOpen = createDisplayWindow(settingsOverride).finally(() => { windowsDisplayOpen = null; });
+  return windowsDisplayOpen;
+}
+async function createDisplayWindow(settingsOverride) {
   if (window && !window.isDestroyed()) { window.show(); return true; }
   const target = findTargetDisplay(settingsOverride || await getSettings());
   controlState = { ...controlState, connected: false, displayAvailable: Boolean(target) };
@@ -181,7 +189,8 @@ async function openDisplayWindow(settingsOverride) {
   if (created.isDestroyed()) return false;
   created.show();
   if (target && !dev && (!nativeWayland || usingXWayland) && !created.isDestroyed()) {
-    placeDisplayWindow(created, target.id);
+    if (process.platform === 'win32') { created.setBounds(target.bounds); created.setFullScreen(true); }
+    else placeDisplayWindow(created, target.id);
   }
   return true;
 }
@@ -283,6 +292,29 @@ app.whenReady().then(async () => {
       if (displayWanted) setTimeout(() => openDisplayWindow().catch(console.error), 100);
     }
   });
+  if (process.platform === 'win32') {
+    let metricsTimer;
+    const updateWindowsDisplay = async () => {
+      const target = findTargetDisplay(await getSettings());
+      controlState = { ...controlState, displayAvailable: Boolean(target) };
+      if (window && !window.isDestroyed() && !dev && target?.id === activeDisplayId) {
+        const bounds = window.getBounds();
+        if (['x', 'y', 'width', 'height'].some(key => bounds[key] !== target.bounds[key])) {
+          window.setFullScreen(false);
+          window.setBounds(target.bounds);
+          window.setFullScreen(true);
+        }
+      } else if (!dev) {
+        if (window && !window.isDestroyed()) window.close();
+        if (displayWanted) await openDisplayWindow();
+      }
+    };
+    screen.on('display-metrics-changed', () => {
+      clearTimeout(metricsTimer);
+      metricsTimer = setTimeout(() => updateWindowsDisplay().catch(console.error), 300);
+    });
+    app.on('before-quit', () => { clearTimeout(metricsTimer); require('./windows-worker.cjs').stopWindowsWorkers(); });
+  }
   if (launchControlPanel || pendingControlOpen) await openControlPanel();
   openDisplayWindow().catch(console.error);
 });

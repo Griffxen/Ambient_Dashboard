@@ -70,9 +70,28 @@ Memo 本地保存为结构化 JSON，支持长期、限时与指定过期时间�
 
 自动刷新只更新对应区域的数据，不重载页面。`prefers-reduced-motion` 与设置中的低动画/关闭动画会降低动效。
 
+界面随构建附带 DM Sans、IBM Plex Mono、Noto Serif SC、Noto Sans SC 和霞鹜文楷字体，离线启动无需单独安装字体。保留原有系统字体的优先顺序，并为 Windows 缺失的字体提供本地回退；字体许可证随程序保存于 `dist/font-licenses/`，源码副本位于 `public/font-licenses/`。
+
+Windows 使用隐藏的常驻 PowerShell 5.1 采集进程，展示页和控制页共享采样，不会每次轮询都新开终端。网络与磁盘速率从系统性能计数器读取，GPU 使用最忙引擎的占用率；有 NVIDIA 工具时同时读取独显温度、显存与功耗，核显更忙时显示核显负载。缺少驱动提供的温度、功耗等指标仍显示 `—`。系统媒体会话支持中文曲名、播放/暂停筛选和时间轴进度；媒体接口要求 Windows 10 1809 或更高版本。
+
 ## 当前验证范围
 
-已在 Ubuntu 完成 TypeScript/Vite 构建、Linux AppImage 打包和 700×1120 CSS px 浏览器预览。AppImage 约 113 MB；开发预览中，Electron 主进程及直接子进程的一次 RSS 采样合计约 418 MiB。该采样包含共享页的重复计数，不等于实际独占内存；目标副屏上的长期占用仍需实测。Windows 安装程序、Windows 媒体/硬件采集、实际副屏选择与登录自启需在 Windows 和目标副屏上实测。
+已在 Ubuntu 完成 TypeScript/Vite 构建、Linux AppImage 打包和 700×1120 CSS px 浏览器预览。AppImage 约 113 MB；开发预览中，Electron 主进程及直接子进程的一次 RSS 采样合计约 418 MiB。该采样包含共享页的重复计数，不等于实际独占内存；目标副屏上的长期占用仍需实测。
+
+2026-10-03 在 Windows 11 完成构建、NSIS 安装包生成，以及开发可执行程序和打包可执行程序的实测。竖屏副屏为 934×1494 DIP、150% 缩放、90° 旋转；已确认全屏位置、控制页连接、模式切换、副屏关闭/重开、CPU/RAM/GPU/网络/磁盘采集、中文媒体元数据、长音频时间轴和暂停过滤。通过浏览器字体接口检查了本地字体加载，并检查实际时钟和标签渲染字体。Windows 屏幕参数变更、自启注册参数和 Linux 原有定位流程有回归测试；安装/卸载流程、真实热插拔与旋转切换、登录重启和长期运行仍需实测。
+
+可复现检查命令（桌面检查会自动启动并关闭测试实例，请先退出现有 Dashboard）：
+
+```powershell
+npm run test:windows
+npm run build
+& .\node_modules\electron\dist\electron.exe .\tests\smoke-windows.cjs
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\smoke-windows-media.ps1
+npm run package:windows
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\smoke-windows-package.ps1
+```
+
+桌面检查的文件日志及截图位于 `release/windows-smoke/`。媒体检查创建临时静音会话，结束后自动关闭；不会修改现有播放器。
 
 ## 许可证
 

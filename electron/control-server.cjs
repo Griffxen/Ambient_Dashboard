@@ -52,7 +52,7 @@ async function startControlServer(handlers) {
         : /^\/assets\/[\w.-]+$/.test(route) ? path.join(dist, route.slice(1)) : null;
       if (!file) return json(res, { error: 'Not found' }, 404);
       const data = await fs.readFile(file);
-      const type = file.endsWith('.html') ? 'text/html; charset=utf-8' : file.endsWith('.js') ? 'text/javascript; charset=utf-8' : file.endsWith('.css') ? 'text/css; charset=utf-8' : 'application/octet-stream';
+      const type = file.endsWith('.html') ? 'text/html; charset=utf-8' : file.endsWith('.js') ? 'text/javascript; charset=utf-8' : file.endsWith('.css') ? 'text/css; charset=utf-8' : file.endsWith('.woff2') ? 'font/woff2' : file.endsWith('.woff') ? 'font/woff' : 'application/octet-stream';
       res.writeHead(200, { 'Content-Type': type, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' });
       res.end(data);
     } catch (error) { json(res, { error: String(error) }, 500); }

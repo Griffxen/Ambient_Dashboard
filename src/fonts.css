@@ -1,0 +1,16 @@
+/* Bundle the existing design fonts for offline desktop and control pages. */
+@import '@fontsource-variable/dm-sans';
+@import '@fontsource/ibm-plex-mono/latin-400.css';
+@import '@fontsource/ibm-plex-mono/latin-500.css';
+@import '@fontsource/ibm-plex-mono/latin-600.css';
+@import '@fontsource/ibm-plex-mono/latin-700.css';
+@import '@fontsource-variable/noto-serif-sc';
+@import '@fontsource-variable/noto-sans-sc';
+
+@font-face {
+  font-family: 'LXGW WenKai';
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url('@fontsource/lxgw-wenkai/files/lxgw-wenkai-latin-500-normal.woff2') format('woff2');
+}

@@ -1,5 +1,6 @@
 import { nightLevel, type SolarDay } from './appearance';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import './fonts.css';
 import Control from './control';
 import { createRoot } from 'react-dom/client';
 import './style.css';

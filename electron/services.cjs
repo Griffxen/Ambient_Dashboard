@@ -339,7 +339,7 @@ async function nvidia() {
     }
   }
   try {
-    const { stdout } = await run('nvidia-smi', ['--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,fan.speed,clocks.current.graphics', '--format=csv,noheader,nounits'], { timeout: 2500 });
+    const { stdout } = await run('nvidia-smi', ['--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,fan.speed,clocks.current.graphics', '--format=csv,noheader,nounits'], { timeout: 2500, ...(process.platform === 'win32' ? { windowsHide: true } : {}) });
     const fields = stdout.trim().split('\n')[0].split(',').map(x => Number(x.trim()));
     const val = i => Number.isFinite(fields[i]) ? fields[i] : null;
     const value = { use: val(0), vramUsedMB: val(1), vramTotalMB: val(2), tempC: val(3), powerW: val(4), fanPercent: val(5), clockMHz: val(6) };
@@ -347,6 +347,7 @@ async function nvidia() {
   } catch { gpuCache = { at: Date.now(), value: null }; return null; }
 }
 async function telemetry() {
+  if (process.platform === 'win32') return require('./windows-telemetry.cjs').telemetry(nvidia);
   const at = Date.now();
   const cpu = os.cpus();
   const totals = cpu.reduce((acc, core) => {
@@ -390,11 +391,7 @@ async function media() {
     } catch { return null; }
   }
   if (process.platform === 'win32') {
-    try {
-      const script = await externalScript('windows-media.ps1');
-      const { stdout } = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script], { timeout: 4000 });
-      return JSON.parse(stdout.trim());
-    } catch { return null; }
+    return require('./windows-worker.cjs').windowsMedia();
   }
   return null;
 }
