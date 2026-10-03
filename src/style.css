@@ -27,6 +27,7 @@
 .now-marker{height:22px}.now-left{gap:3px}.now-left span{font-size:10px}.now-left time{font-size:13px}
 @media(max-width:650px){.now-left span{font-size:9px}.now-left time{font-size:12px}}
 .event:before{top:0;bottom:0}.now-marker{position:relative;height:26px;margin:0}.now-marker:before,.gap:before{content:'';position:absolute;top:0;bottom:0;left:93px;width:1px;background:var(--axis-color)}
+.now-marker>i{position:relative;z-index:1}
 .gap{position:relative;display:flex;align-items:center;justify-content:center;height:30px;padding:0}.gap:after{content:none}.gap span{position:relative;z-index:1;margin:0;padding:0 3px;background:#f5f4ed;font-size:11px;font-weight:600;letter-spacing:.04em;opacity:1}
 @media(max-width:650px){.now-marker:before,.gap:before{left:78px}}
 @media(prefers-color-scheme:dark){.gap span{background:#242b29}}
