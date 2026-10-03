@@ -23,7 +23,7 @@ Windows PowerShell 对应命令为 `$env:DASHBOARD_DEV='1'; npm run desktop`。
 
 正式打包分别运行 `npm run package:linux`（Ubuntu AppImage）或在 Windows 上运行 `npm run package:windows`（NSIS 安装程序）。输出位于 `release/`。正式启动时只在非主屏的竖屏上显示；副屏缺失时程序与控制服务继续运行，控制面板显示“未连接”，检测到副屏后自动打开展示。高级设置 `targetDisplayId` 可指定屏幕 ID，需填入当前 Electron `screen` API 报告的数字 ID。控制面板可单独关闭或重新打开副屏展示；开发预览会使用普通窗口。
 
-从开始菜单手动启动时会同时打开控制面板；登录自动启动时只启动副屏展示和本机控制服务。程序使用单实例锁，重复点击开始菜单会唤起已有实例并打开或聚焦现有控制面板，不会重复启动多个后台程序。Ubuntu 开始菜单图标安装在当前用户的 `~/.local/share/icons/hicolor/512x512/apps/ambient-dashboard.png`，桌面入口位于 `~/.local/share/applications/ambient-dashboard.desktop`，该图标主题路径可供 Wayland 桌面菜单读取。
+从开始菜单、任务栏或登录自启启动时，只启动副屏展示和本机控制服务。程序使用单实例锁，应用已运行时，再次点击启动会打开或聚焦控制面板，不会重复启动后台程序。需要控制面板时可访问 `http://127.0.0.1:3988/control`，或使用 `--control` 参数启动以打开独立控制窗口。Ubuntu 开始菜单图标安装在当前用户的 `~/.local/share/icons/hicolor/512x512/apps/ambient-dashboard.png`，桌面入口位于 `~/.local/share/applications/ambient-dashboard.desktop`，该图标主题路径可供 Wayland 桌面菜单读取。
 
 ## 通用展示接口
 

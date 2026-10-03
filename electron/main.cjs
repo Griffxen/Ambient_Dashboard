@@ -10,14 +10,14 @@ const { startControlServer, stopControlServer } = require('./control-server.cjs'
 const nativeWayland = process.platform === 'linux' && process.env.XDG_SESSION_TYPE === 'wayland';
 const usingXWayland = process.argv.includes('--ozone-platform=x11');
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
-const launchedAtLogin = process.argv.includes('--autostart');
+const launchControlPanel = process.argv.includes('--control');
 
 const configPath = path.join(os.homedir(), '.config', 'ambient-dashboard', 'config.json');
 let storePath;
 let window;
 let controlWindow;
 let controlServerReady = false;
-let pendingManualOpen = false;
+let pendingControlOpen = false;
 let activeDisplayId = null;
 let displayWanted = true;
 let screenAwakeBlockerId = null;
@@ -124,6 +124,37 @@ function findTargetDisplay(settings, displays = screen.getAllDisplays()) {
     : displays.find(d => d.id !== screen.getPrimaryDisplay().id && portrait(d))
       || displays.find(d => d.id !== screen.getPrimaryDisplay().id && d.bounds.width < d.bounds.height);
 }
+function placeDisplayWindow(created, displayId) {
+  // Mutter can override the initial position while mapping an XWayland window.
+  // Move only after mapping, then allow the move to settle before fullscreen.
+  let timer;
+  let attempts = 0;
+  const schedule = (callback, delay) => { timer = setTimeout(callback, delay); };
+  created.once('closed', () => clearTimeout(timer));
+  const place = () => {
+    if (created.isDestroyed()) return;
+    const target = screen.getAllDisplays().find(d => d.id === displayId);
+    if (!target) return;
+    attempts += 1;
+    created.setFullScreen(false);
+    schedule(() => {
+      if (created.isDestroyed()) return;
+      created.setBounds(target.bounds);
+      schedule(() => {
+        if (created.isDestroyed()) return;
+        created.setFullScreen(true);
+        schedule(() => {
+          if (created.isDestroyed()) return;
+          if (screen.getDisplayMatching(created.getBounds()).id !== displayId) {
+            if (attempts < 3) place();
+            else console.error('Display window placement failed:', displayId, created.getBounds());
+          }
+        }, 500);
+      }, 300);
+    }, 200);
+  };
+  schedule(place, 500);
+}
 async function openDisplayWindow(settingsOverride) {
   if (window && !window.isDestroyed()) { window.show(); return true; }
   const target = findTargetDisplay(settingsOverride || await getSettings());
@@ -135,7 +166,7 @@ async function openDisplayWindow(settingsOverride) {
     width: bounds?.width ?? 700, height: bounds?.height ?? 1120,
     icon: path.join(__dirname, 'assets', 'ambient-dashboard.png'),
     x: bounds?.x, y: bounds?.y, backgroundColor: '#eeece5',
-    autoHideMenuBar: true, fullscreen: false,
+    autoHideMenuBar: true, fullscreen: false, show: false,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false }
   });
   const created = window;
@@ -147,10 +178,10 @@ async function openDisplayWindow(settingsOverride) {
   });
   if (dev) await created.loadURL('http://127.0.0.1:5173');
   else await created.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+  if (created.isDestroyed()) return false;
+  created.show();
   if (target && !dev && (!nativeWayland || usingXWayland) && !created.isDestroyed()) {
-    setTimeout(() => {
-      if (!created.isDestroyed()) created.setFullScreen(true);
-    }, 1000);
+    placeDisplayWindow(created, target.id);
   }
   return true;
 }
@@ -186,7 +217,7 @@ if (!hasSingleInstanceLock) {
   app.on('second-instance', (_event, argv) => {
     if (argv.includes('--autostart')) return;
     if (controlServerReady) openControlPanel().catch(console.error);
-    else pendingManualOpen = true;
+    else pendingControlOpen = true;
   });
 }
 
@@ -252,12 +283,8 @@ app.whenReady().then(async () => {
       if (displayWanted) setTimeout(() => openDisplayWindow().catch(console.error), 100);
     }
   });
-  if (!launchedAtLogin || pendingManualOpen) await openControlPanel();
-  openDisplayWindow()
-    .then(() => {
-      if (!launchedAtLogin || pendingManualOpen) openControlPanel().catch(console.error);
-    })
-    .catch(console.error);
+  if (launchControlPanel || pendingControlOpen) await openControlPanel();
+  openDisplayWindow().catch(console.error);
 });
 app.on('window-all-closed', () => {});
 app.on('before-quit', stopMemoEditor);
